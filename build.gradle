@@ -13,6 +13,7 @@ repositories {
 }
 
 dependencies {
+    implementation 'org.slf4j:slf4j-api:1.7.30'
     implementation 'org.elasticsearch.client:elasticsearch-rest-high-level-client:7.10.1'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
