@@ -14,21 +14,14 @@ public class RestHighLevelClientConfiguration {
 
     private final String host;
     private final Integer port;
-    private final String scheme;
 
-    public RestHighLevelClientConfiguration(
-        @Value("${elasticsearch.host}") String host,
-        @Value("${elasticsearch.port}") Integer port,
-        @Value("${scheme}") String scheme
-    ) {
+    public RestHighLevelClientConfiguration(@Value("${elasticsearch.host}") String host, @Value("${elasticsearch.port}") Integer port) {
         this.host = host;
         this.port = port;
-        this.scheme = scheme;
     }
 
     @Bean(destroyMethod = "close")
     public RestHighLevelClient restHighLevelClient() {
-        return new RestHighLevelClient(RestClient.builder(new HttpHost(host, port, scheme)));
+        return new RestHighLevelClient(RestClient.builder(new HttpHost(host, port)));
     }
-
 }
