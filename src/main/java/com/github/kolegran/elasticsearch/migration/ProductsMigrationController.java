@@ -16,7 +16,7 @@ public class ProductsMigrationController {
     }
 
     @PostMapping("/migrate")
-    public void migrateProducts() {
-        productsService.migrateProducts();
+    public int migrateProducts() {
+        return productsService.migrateProducts();
     }
 }

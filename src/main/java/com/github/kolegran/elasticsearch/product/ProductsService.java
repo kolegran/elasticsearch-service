@@ -3,7 +3,6 @@ package com.github.kolegran.elasticsearch.product;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CreateIndexRequest;
@@ -11,6 +10,7 @@ import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.rest.RestStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,13 +18,14 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 public class ProductsService {
 
     private static final String INDEX_NAME = "products";
-    private static final String MIGRATION_JSON = "products.json";
-    private static final String INDEXED_DOC_ID = "1";
+    private static final String PRODUCTS_JSON = "products.json";
     private static final Logger logger = LoggerFactory.getLogger(ProductsService.class);
     private final RestHighLevelClient restHighLevelClient;
     private final Integer shards;
@@ -51,15 +52,20 @@ public class ProductsService {
         }
     }
 
-    public void migrateProducts() {
-        final IndexRequest request = new IndexRequest(INDEX_NAME).id(INDEXED_DOC_ID);
-        request.source(getProductsJsonContent(), XContentType.JSON);
-        try {
-            final IndexResponse response = restHighLevelClient.index(request, RequestOptions.DEFAULT);
-            logger.info("Migration was finished with status: {}", response.status().getStatus());
-        } catch (IOException e) {
-            throw new ProductsMigrationException("Products migration was failed");
+    public int migrateProducts() {
+        for (Map.Entry<Integer, String> entry : parseProductsJson().entrySet()) {
+            final IndexRequest request = new IndexRequest(INDEX_NAME);
+            request.id(entry.getKey().toString());
+            request.source(entry.getValue(), XContentType.JSON);
+            try {
+                restHighLevelClient.index(request, RequestOptions.DEFAULT);
+            } catch (IOException e) {
+                logger.error("Products migration was failed");
+                return RestStatus.INTERNAL_SERVER_ERROR.getStatus();
+            }
         }
+        logger.info("Products migration was successful");
+        return RestStatus.OK.getStatus();
     }
 
     private Settings prepareIndexSettings() {
@@ -69,26 +75,22 @@ public class ProductsService {
             .build();
     }
 
-    private String getProductsJsonContent() {
-        try (InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream(MIGRATION_JSON)) {
-            final ObjectMapper mapper = new ObjectMapper();
-            final JsonNode jsonNode = mapper.readValue(in, JsonNode.class);
-            return mapper.writeValueAsString(jsonNode);
+    private Map<Integer, String> parseProductsJson() {
+        final Map<Integer, String> productsByCode = new HashMap<>();
+        try (InputStream is = Thread.currentThread().getContextClassLoader().getResourceAsStream(PRODUCTS_JSON)) {
+            final JsonNode jsonNode = new ObjectMapper().readTree(is);
+            for (JsonNode node : jsonNode) {
+                productsByCode.put(node.get("productCode").asInt(), node.toPrettyString());
+            }
         } catch (Exception e) {
-            throw new ProductsJsonParseException("Cannot parse json");
+            throw new ProductsJsonParseException("Cannot parse products JSON");
         }
+        return productsByCode;
     }
 
     private static final class CreateIndexException extends RuntimeException {
 
         public CreateIndexException(String message) {
-            super(message);
-        }
-    }
-
-    private static final class ProductsMigrationException extends RuntimeException {
-
-        public ProductsMigrationException(String message) {
             super(message);
         }
     }
